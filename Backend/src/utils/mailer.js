@@ -67,66 +67,131 @@ const getTransporter = async () => {
 };
 
 const sendVerificationEmail = async (email, name, token) => {
-  const mailTransporter = await getTransporter();
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const verifyUrl = `${frontendUrl}/verify-email?token=${token}`;
 
-  const senderEmail = process.env.GMAIL_USER || process.env.SMTP_USER || 'no-reply@hrms.com';
-  const mailOptions = {
-    from: `"HRMS Portal" <${senderEmail}>`,
-    to: email,
-    subject: 'Verify Your Email - HRMS Portal',
-    text: `Hello ${name},\n\nPlease verify your email by clicking the link below:\n${verifyUrl}\n\nThank you!`,
-    html: `
-      <h3>Hello ${name},</h3>
-      <p>Please verify your email by clicking the button below:</p>
-      <a href="${verifyUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; display: inline-block; border-radius: 4px; font-weight: bold;">Verify Email</a>
-      <p>Or copy and paste this link in your browser:</p>
-      <p><a href="${verifyUrl}">${verifyUrl}</a></p>
-    `
-  };
+  const subject = 'Verify Your Email - HRMS Portal';
+  const text = `Hello ${name},\n\nPlease verify your email by clicking the link below:\n${verifyUrl}\n\nThank you!`;
+  const html = `
+    <h3>Hello ${name},</h3>
+    <p>Please verify your email by clicking the button below:</p>
+    <a href="${verifyUrl}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; display: inline-block; border-radius: 4px; font-weight: bold;">Verify Email</a>
+    <p>Or copy and paste this link in your browser:</p>
+    <p><a href="${verifyUrl}">${verifyUrl}</a></p>
+  `;
 
+  // Resend HTTP API support (Bypasses SMTP port blocks)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: process.env.MAIL_FROM || 'HRMS Portal <onboarding@resend.dev>',
+          to: email,
+          subject,
+          html,
+          text
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Resend API error');
+      }
+      console.log(`[Email Sent via Resend] Message ID: ${data.id}`);
+      return data;
+    } catch (error) {
+      console.error('Error sending verification email via Resend:', error.message);
+    }
+  }
+
+  // Fallback to Nodemailer SMTP
   try {
+    const mailTransporter = await getTransporter();
+    const senderEmail = process.env.GMAIL_USER || process.env.SMTP_USER || 'no-reply@hrms.com';
+    const mailOptions = {
+      from: `"HRMS Portal" <${senderEmail}>`,
+      to: email,
+      subject,
+      text,
+      html
+    };
+
     const info = await mailTransporter.sendMail(mailOptions);
-    console.log(`[Email Sent] Verification link: ${verifyUrl}`);
+    console.log(`[Email Sent via SMTP] Verification link: ${verifyUrl}`);
     const previewUrl = nodemailer.getTestMessageUrl(info);
     if (previewUrl) {
       console.log(`[Ethereal Sandbox Inbox Preview URL]: ${previewUrl}`);
     }
     return info;
   } catch (error) {
-    console.error('Error sending verification email:', error);
+    console.error('Error sending verification email via SMTP:', error);
   }
 };
 
 const sendActivationEmail = async (email, name, employeeId, tempPassword) => {
-  const mailTransporter = await getTransporter();
+  const subject = 'Welcome to the Team! Activate Your HRMS Account';
+  const text = `Hello ${name},\n\nYou have been registered on the HRMS portal.\nYour Employee ID is: ${employeeId}\nYour Temporary Password is: ${tempPassword}\n\nPlease log in and activate your account using these credentials.\n\nThank you!`;
+  const html = `
+    <h3>Hello ${name},</h3>
+    <p>Welcome to the team! You have been registered on the HRMS portal.</p>
+    <p><strong>Employee ID:</strong> ${employeeId}</p>
+    <p><strong>Temporary Password:</strong> ${tempPassword}</p>
+    <p>Please log in and activate your account to configure your password.</p>
+  `;
 
-  const senderEmail = process.env.GMAIL_USER || process.env.SMTP_USER || 'no-reply@hrms.com';
-  const mailOptions = {
-    from: `"HRMS Portal" <${senderEmail}>`,
-    to: email,
-    subject: 'Welcome to the Team! Activate Your HRMS Account',
-    text: `Hello ${name},\n\nYou have been registered on the HRMS portal.\nYour Employee ID is: ${employeeId}\nYour Temporary Password is: ${tempPassword}\n\nPlease log in and activate your account using these credentials.\n\nThank you!`,
-    html: `
-      <h3>Hello ${name},</h3>
-      <p>Welcome to the team! You have been registered on the HRMS portal.</p>
-      <p><strong>Employee ID:</strong> ${employeeId}</p>
-      <p><strong>Temporary Password:</strong> ${tempPassword}</p>
-      <p>Please log in and activate your account to configure your password.</p>
-    `
-  };
+  // Resend HTTP API support (Bypasses SMTP port blocks)
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: process.env.MAIL_FROM || 'HRMS Portal <onboarding@resend.dev>',
+          to: email,
+          subject,
+          html,
+          text
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Resend API error');
+      }
+      console.log(`[Email Sent via Resend] Message ID: ${data.id}`);
+      return data;
+    } catch (error) {
+      console.error('Error sending activation email via Resend:', error.message);
+    }
+  }
 
+  // Fallback to Nodemailer SMTP
   try {
+    const mailTransporter = await getTransporter();
+    const senderEmail = process.env.GMAIL_USER || process.env.SMTP_USER || 'no-reply@hrms.com';
+    const mailOptions = {
+      from: `"HRMS Portal" <${senderEmail}>`,
+      to: email,
+      subject,
+      text,
+      html
+    };
+
     const info = await mailTransporter.sendMail(mailOptions);
-    console.log(`[Email Sent] Activation credentials for ${employeeId} sent to ${email}`);
+    console.log(`[Email Sent via SMTP] Activation credentials for ${employeeId} sent to ${email}`);
     const previewUrl = nodemailer.getTestMessageUrl(info);
     if (previewUrl) {
       console.log(`[Ethereal Sandbox Inbox Preview URL]: ${previewUrl}`);
     }
     return info;
   } catch (error) {
-    console.error('Error sending activation email:', error);
+    console.error('Error sending activation email via SMTP:', error);
   }
 };
 
